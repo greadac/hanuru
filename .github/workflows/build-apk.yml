@@ -1,0 +1,59 @@
+name: APK 만들기
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 파일 정리
+        run: |
+          if [ -f index.html ]; then
+            mkdir -p www scripts assets
+            mv -f index.html config.js icon-192.png icon-512.png www/
+            mv -f patch-android.js scripts/
+            mv -f icon-only.png icon-foreground.png icon-background.png assets/
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 패키지 설치
+        run: npm install
+
+      - name: 안드로이드 프로젝트 만들기
+        run: npx cap add android
+
+      - name: 아이콘 만들기 (실패해도 계속)
+        run: npx --yes @capacitor/assets generate --android --iconBackgroundColor '#0d171a' --iconBackgroundColorDark '#0d171a'
+        continue-on-error: true
+
+      - name: 알림 설정 넣기
+        run: node scripts/patch-android.js
+
+      - name: 웹 파일 복사
+        run: npx cap sync android
+
+      - name: APK 빌드
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: APK 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: hanuru-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
