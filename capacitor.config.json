@@ -1,0 +1,9 @@
+{
+  "appId": "com.greada.hanuru",
+  "appName": "하루 발자취",
+  "webDir": "www",
+  "android": {
+    "useLegacyBridge": true,
+    "adjustMarginsForEdgeToEdge": "force"
+  }
+}
