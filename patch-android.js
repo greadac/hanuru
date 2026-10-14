@@ -26,4 +26,13 @@ if (!x.includes('capacitor_background_geolocation_notification_channel_name')) {
   x = x.replace('</resources>', add + '</resources>');
   fs.writeFileSync(f, x);
 }
+
+// 3) 매번 같은 서명 키를 쓰게 해서, 새 APK를 지우지 않고 덮어 설치할 수 있게 합니다.
+const os = require('os');
+if (fs.existsSync('debug.keystore')) {
+  const dir = path.join(os.homedir(), '.android');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync('debug.keystore', path.join(dir, 'debug.keystore'));
+  console.log('서명 키 적용 완료');
+}
 console.log('안드로이드 설정 완료');

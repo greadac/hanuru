@@ -159,6 +159,8 @@ footer a{color:var(--ink);font-weight:700}
           <label class="btn alt sm" for="file" style="cursor:pointer">내 사진 고르기</label>
           <input type="file" id="file" accept="image/*">
           <button class="btn alt sm" id="useSample" type="button">예시 사진으로</button>
+          <label class="btn sm" for="cam" style="cursor:pointer">촬영</label>
+          <input type="file" id="cam" accept="image/*" capture="environment">
         </div></div>
       <div class="g"><label class="lab" for="title">제목</label>
         <input type="text" id="title" class="txt" maxlength="24" placeholder="예) 가을 출근길" autocomplete="off"></div>
@@ -651,11 +653,11 @@ const loadFonts=()=>Promise.all(FONTS.map(f=>document.fonts.load(f))).catch(()=>
 document.querySelectorAll('#v-comp input:not([type=file])').forEach(i=>{i.addEventListener('change',renderComp);i.addEventListener('input',renderComp)});
 document.querySelectorAll('input[name=font]').forEach(i=>i.addEventListener('change',()=>loadFonts().then(renderComp)));
 $('#fs').addEventListener('input',()=>{$('#fsv').textContent=$('#fs').value+'%'});
-$('#file').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
+['#file','#cam'].forEach(sel=>$(sel).addEventListener('change',e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
   const img=new Image();if(photoUrl)URL.revokeObjectURL(photoUrl);
   photoUrl=URL.createObjectURL(f);img.onload=()=>{photo=img;renderComp()};img.src=photoUrl;
-});
+}));
 $('#useSample').addEventListener('click',()=>{photo=null;renderComp()});
 let outUrl=null,outBlob=null;
 function makePng(cb){renderComp();comp.toBlob(b=>{if(!b){toast('이미지를 만들지 못했어요');return}outBlob=b;cb(b)},'image/png')}
