@@ -384,24 +384,40 @@ function startRec(){
   else{watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:5000,timeout:30000});requestWake()}
   renderToday(true);
 }
-async function startNative(){
-  const BG=PL('BackgroundGeolocation');
-  if(!BG){toast('위치 기록 기능을 찾지 못했어요');rec=false;renderRec();return}
-  try{const LN=PL('LocalNotifications');if(LN)await LN.requestPermissions()}catch(e){}
+let drainTimer=null;
+async function drainNative(){
+  const T=PL('HanuruTracker'); if(!T) return;
   try{
-    const id=await BG.addWatcher({backgroundTitle:'하루 발자취',backgroundMessage:'이동 경로를 기록하고 있어요',requestPermissions:true,stale:false,distanceFilter:8},(loc,err)=>{
-      if(err){if(err.code==='NOT_AUTHORIZED'){toast('위치 권한을 허용해 주세요');try{BG.openSettings()}catch(e){}stopRec(true)}return}
-      if(loc)onPos({coords:{latitude:loc.latitude,longitude:loc.longitude,accuracy:loc.accuracy||10},timestamp:loc.time||Date.now()});
-    });
-    if(rec) watchId=id; else {try{BG.removeWatcher({id})}catch(e){}}
-  }catch(e){toast('위치 기록을 시작하지 못했어요');rec=false;renderRec()}
+    const r=await T.drain(); const txt=(r&&r.data)||''; if(!txt) return;
+    for(const ln of txt.split('\n')){
+      const a=ln.split(','); if(a.length<4) continue;
+      const la=+a[0],lo=+a[1],ac=+a[2],tm=+a[3];
+      if(!isFinite(la)||!isFinite(lo)||!tm) continue;
+      onPos({coords:{latitude:la,longitude:lo,accuracy:ac||10},timestamp:tm});
+    }
+  }catch(e){}
 }
-function stopRec(silent){
+function watchNative(){ if(drainTimer) clearInterval(drainTimer); drainTimer=setInterval(drainNative,3000); drainNative() }
+async function startNative(){
+  const T=PL('HanuruTracker');
+  if(!T){toast('위치 기록 기능을 찾지 못했어요');rec=false;renderRec();return}
+  try{
+    await T.start();
+    watchId='native'; watchNative();
+  }catch(e){
+    const m=String((e&&e.message)||e);
+    toast(m.indexOf('NOT_AUTHORIZED')>=0?'위치 권한을 허용해 주세요 (설정 > 앱 > 하루 발자취 > 권한)':'위치 기록을 시작하지 못했어요');
+    stopRec(true);
+  }
+}
+async function stopRec(silent){
+  if(NATIVE&&rec) await drainNative();
   if(watchId!==null){
-    if(NATIVE){try{PL('BackgroundGeolocation').removeWatcher({id:watchId})}catch(e){}}
+    if(NATIVE){}
     else navigator.geolocation.clearWatch(watchId);
   }
   watchId=null; rec=false;
+  if(NATIVE){try{PL('HanuruTracker').stop()}catch(e){} if(drainTimer){clearInterval(drainTimer);drainTimer=null}}
   try{localStorage.removeItem(K+'rec')}catch(e){}
   try{wake&&wake.release()}catch(e){} wake=null;
   renderToday(false);
@@ -410,7 +426,7 @@ function stopRec(silent){
 $('#recBtn').addEventListener('click',()=>rec?stopRec():startRec());
 $('#toToday').addEventListener('click',()=>{setDay(today());stopSig='';renderToday(true)});
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&rec) requestWake();
+  if(document.visibilityState==='visible'&&rec){requestWake();drainNative()}
   if(document.visibilityState==='hidden') syncNow(true);
 });
 setInterval(()=>{if(rec)renderRec()},3000);
@@ -698,7 +714,16 @@ setDay(today());
 renderToday(true);
 initFirebase();
 if(!NATIVE&&'serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
-try{if(localStorage.getItem(K+'rec')==='1'&&navigator.geolocation)startRec()}catch(e){}
+try{
+  if(NATIVE){
+    (async()=>{
+      const T=PL('HanuruTracker'); if(!T) return;
+      let on=false; try{on=!!(await T.status()).recording}catch(e){}
+      if(on){ rec=true; watchId='native'; if(S.day!==today()) setDay(today()); watchNative(); renderToday(true) }
+      else { await drainNative(); if(localStorage.getItem(K+'rec')==='1') startRec() }
+    })();
+  } else if(localStorage.getItem(K+'rec')==='1'&&navigator.geolocation) startRec();
+}catch(e){}
 window.__hanuru={analyze,hav,S,onPos};
 })();
 </script>
